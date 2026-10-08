@@ -99,7 +99,7 @@ Se alterar a expressão de `searchVector`, altere também `news_tsquery` na mesm
    - URL canônica: sem `utm_*`, `fbclid`, `gclid` e fragmento, e com redirecionadores `…/*https://…` desembrulhados.
    - Deduplicação por SHA-256 da URL.
    - Título e resumo em texto puro; o resumo é cortado em até 280 caracteres, em limite de palavra.
-   - Quando o título é só um "chapéu" e a manchete vem na description, a description vira o título. Contam como chapéu: texto em maiúsculas (ex.: `AO VIVO`), chamadas como `Clique aqui` ou `Leia mais`, e o nome do colunista ou do blog em links de `/colunas/`, `/colunistas/` ou `/blogs/` (ex.: UOL com `Mariana Barbosa`).
+   - Quando o título é só um "chapéu" e a manchete vem na description, a description vira o título. Contam como chapéu: texto em maiúsculas (ex.: `AO VIVO`), chamadas como `Clique aqui` ou `Leia mais`, e o nome do colunista ou do blog em links de `/colunas/`, `/colunistas/` ou `/blogs/` (ex.: UOL com `Mariana Barbosa`). No feed da home do UOL (`kickerTitleFeeds` em `src/worker/config.ts`), qualquer título preenchido conta como chapéu, porque ali colunistas também publicam em URLs de notícia (ex.: `Alexandre Borges` em `/politica/ultimas-noticias/`).
    - O resumo não repete a manchete: some a legenda e o crédito da foto que o g1 põe no início da description (ex.: `Reprodução/Instagram`), e também o título repetido no começo (inteiro ou encurtado, seguido de frase nova) e o nome do veículo grudado nele (ex.: CN7).
    - Se o título é chapéu e o feed não traz descrição (ex.: Prefeitura de Manaus com `NOTA`), o resumo vem do `og:description` da página.
    - **O `content:encoded` nunca é lido.**

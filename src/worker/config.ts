@@ -23,4 +23,9 @@ export const config = {
   page: { timeoutMs: 10_000, maxBytes: 512 * 1024 },
   robots: { timeoutMs: 10_000, maxBytes: 256 * 1024, ttlMs: 24 * 60 * 60 * 1000 },
   summaryMaxChars: 280,
+  /**
+   * Feeds cujo <title>, quando preenchido, é sempre chapéu (colunista ou seção) e a manchete
+   * vem na descrição. Na home do UOL nem toda coluna tem /colunas/ na URL.
+   */
+  kickerTitleFeeds: ["https://rss.home.uol.com.br/index.xml"] as readonly string[],
 } as const;

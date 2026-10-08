@@ -74,6 +74,7 @@ function toCandidates(
   const cutoff = new Date(now.getTime() - config.retentionDays * 86_400_000);
   const seen = new Set<string>();
   const out: Candidate[] = [];
+  const kickerFeed = config.kickerTitleFeeds.includes(feedUrl);
   const skewMs = feedClockSkewMs(items, now);
   if (skewMs) log("warn", "feed_clock_skew", { feed: feedUrl, hours: skewMs / 3_600_000 });
 
@@ -84,7 +85,7 @@ function toCandidates(
 
     let title = htmlToText(item.title);
     let description = cleanSummary(htmlToText(stripImageCaption(item.summary ?? item.content)));
-    if ((!title || isKickerTitle(title, url)) && description) {
+    if ((!title || kickerFeed || isKickerTitle(title, url)) && description) {
       title = description;
       description = "";
     }

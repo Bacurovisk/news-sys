@@ -232,7 +232,7 @@ Página única (`/`), renderizada no servidor e responsiva (mobile primeiro). O 
 
 ## Docker e deploy
 
-O passo a passo completo está em [`DEPLOY.md`](DEPLOY.md): DNS no Cloudflare, rsync, segredos, Nginx Proxy Manager, verificação, atualização, backup e restauração.
+O passo a passo de produção (DNS, Nginx Proxy Manager, segredos, backup) fica num `DEPLOY.md` local, fora do repositório (está no `.gitignore` porque o repositório é público).
 
 `Dockerfile` multi-stage (`node:22.23.2-bookworm-slim`), com estes estágios:
 
@@ -271,5 +271,13 @@ docker compose --env-file /caminho/teste.env up -d --build
 - [x] **Fase 2:** scaffold, Prisma 7, migration com full-text, seed de categorias
 - [x] **Fase 3:** worker de coleta e seed de fontes validadas
 - [x] **Fase 4:** interface (busca, filtros, paginação, `/fontes`)
-- [x] **Fase 5:** Docker Compose e `DEPLOY.md`
-- [ ] **Fase 6:** verificação ponta a ponta
+- [x] **Fase 5:** Docker Compose e guia de deploy
+- [x] **Fase 6:** verificação ponta a ponta em produção (https://news.neojr.com)
+
+## Limitações conhecidas
+
+- A busca não junta singular e plural com acento (`eleição` não encontra `eleições`). O stemmer `portuguese` do Postgres não trata esse caso. O dicionário Hunspell resolveria, mas foi descartado por custo de memória.
+- A busca pagina por offset até 200 resultados. A listagem normal usa cursor, sem esse limite.
+- O rate limit fica em memória, no processo do app. É suficiente para uma instância só e zera quando o container reinicia.
+- As imagens são hotlink: se o veículo bloquear ou apagar a imagem, o card mostra o placeholder.
+- A CSP com nonce bloqueia scripts injetados pelo CDN. Se o site estiver atrás do Cloudflare, desligue Email Obfuscation, Rocket Loader e a injeção automática do Web Analytics.

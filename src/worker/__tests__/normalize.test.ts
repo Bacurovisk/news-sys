@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canonicalUrl, cleanSummary, htmlToText, isKickerTitle, safeHttpUrl, truncateWords, urlHash } from "../normalize.ts";
+import { canonicalUrl, cleanSummary, htmlToText, isKickerTitle, safeHttpUrl, stripImageCaption, stripRepeatedTitle, truncateWords, urlHash } from "../normalize.ts";
 
 test("canonicalUrl remove rastreamento, fragmento e ordena parâmetros", () => {
   assert.equal(
@@ -67,4 +67,39 @@ test("isKickerTitle: chamadas genéricas e /colunistas/", () => {
   assert.equal(isKickerTitle("Clique aqui e veja o mapa da votação", any), false);
   assert.equal(isKickerTitle("Rosana Hermann", "https://f5.folha.uol.com.br/colunistas/rosana-hermann/2026/10/x.shtml"), true);
   assert.equal(isKickerTitle("Salmão à Das Dorf", "https://ocp.news/colunistas/salmao-a-das-dorf"), false);
+});
+
+test("stripRepeatedTitle: tira a manchete repetida e o nome do veículo", () => {
+  const t = "Carga com 24 kg de skunk vinda de São Paulo é interceptada em Fortaleza";
+  // CN7: <a>título</a> <a>CN7</a><p>texto</p> ... The post ... first appeared on CN7.
+  const html = `<a href="https://cn7.com.br/x/">${t}</a> <a href="https://cn7.com.br">CN7</a><p>Uma carga com mais de 24 kg foi interceptada. [&#8230;]</p><p>The post <a href="https://cn7.com.br/x/">${t}</a> first appeared on <a href="https://cn7.com.br">CN7</a>.</p>`;
+  assert.equal(stripRepeatedTitle(cleanSummary(htmlToText(html)), t, "CN7"), "Uma carga com mais de 24 kg foi interceptada.");
+  // versão encurtada do título (6+ palavras), caixa e acento diferentes
+  assert.equal(
+    stripRepeatedTitle(
+      "IA que deveria facilitar comunicacao ainda cria barreiras para pessoas surdas Quando precisa resolver",
+      "IA que deveria facilitar comunicação ainda cria barreiras para pessoas surdas, aponta estudo da UFLA",
+    ),
+    "Quando precisa resolver",
+  );
+  assert.equal(stripRepeatedTitle("Título igual", "Título igual"), "");
+  // o resumo começa igual mas continua a mesma frase: fica
+  const lead = '"Não vou declarar apoio a presidente da República", afirmou a governadora';
+  assert.equal(stripRepeatedTitle(lead, "'Não vou declarar apoio a presidente da República', diz Raquel Lyra"), lead);
+  // começo parecido mas curto: fica
+  assert.equal(stripRepeatedTitle("Lula diz que vai vetar o texto", "Lula diz que não vai recuar"), "Lula diz que vai vetar o texto");
+});
+
+test("stripImageCaption: legenda e crédito do g1", () => {
+  const img = '<img src="https://s2-g1.glbimg.com/x.jpg" /><br />';
+  assert.equal(
+    stripImageCaption(`${img}   Cápsula Dragon desce de paraquedas.\nNASA\nOs quatro astronautas voltaram.\nOutra linha`),
+    "Os quatro astronautas voltaram.\nOutra linha",
+  );
+  assert.equal(stripImageCaption(`${img} Legenda\nFabiane de Paula/ SVM.\nTexto.`), "Texto.");
+  assert.equal(stripImageCaption(`${img} Legenda\nReprodução\n. Um site vende tokens.`), "Um site vende tokens.");
+  // segunda linha é texto, não crédito: mantém
+  const body = `${img} Título do vídeo\nUm vídeo de Maria, de 19 anos, viralizou nas redes sociais.\nApós a repercussão...`;
+  assert.equal(stripImageCaption(body), body);
+  assert.equal(stripImageCaption("<p>sem imagem</p>"), "<p>sem imagem</p>");
 });

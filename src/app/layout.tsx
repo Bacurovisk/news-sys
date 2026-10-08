@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { donationsEnabled } from "@/lib/donation";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -31,9 +32,16 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <p>
               Mostramos só título, resumo e imagem de cada notícia. O conteúdo completo está no site de cada veículo.
             </p>
-            <Link href="/fontes" className="underline hover:text-neutral-800 dark:hover:text-neutral-200">
-              Fontes e pedidos de remoção
-            </Link>
+            <div className="flex shrink-0 gap-4">
+              {donationsEnabled() && (
+                <Link href="/doar" className="underline hover:text-neutral-800 dark:hover:text-neutral-200">
+                  Apoie o projeto
+                </Link>
+              )}
+              <Link href="/fontes" className="underline hover:text-neutral-800 dark:hover:text-neutral-200">
+                Fontes e pedidos de remoção
+              </Link>
+            </div>
           </div>
         </footer>
       </body>

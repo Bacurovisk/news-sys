@@ -55,6 +55,7 @@ Veja `.env.example`. Regras:
 - A senha do Postgres deve ser só alfanumérica.
 - `SHADOW_DATABASE_URL` é opcional e só serve em dev, para `prisma migrate diff --from-migrations`.
 - `CATEGORY_RULES_PATH` é opcional (padrão `config/category-rules.json`).
+- `PIX_KEY_TYPE`, `PIX_KEY`, `PIX_NAME`, `PIX_CITY`, `PIX_DESCRIPTION` e `PAYPAL_DONATE_URL` configuram a página de doação e são opcionais (ver "Doação").
 
 ## Estrutura
 
@@ -99,6 +100,7 @@ Se alterar a expressão de `searchVector`, altere também `news_tsquery` na mesm
    - Deduplicação por SHA-256 da URL.
    - Título e resumo em texto puro; o resumo é cortado em até 280 caracteres, em limite de palavra.
    - Quando o título é só um "chapéu" e a manchete vem na description, a description vira o título. Contam como chapéu: texto em maiúsculas (ex.: `AO VIVO`), chamadas como `Clique aqui` ou `Leia mais`, e o nome do colunista ou do blog em links de `/colunas/`, `/colunistas/` ou `/blogs/` (ex.: UOL com `Mariana Barbosa`).
+   - O resumo não repete a manchete: some a legenda e o crédito da foto que o g1 põe no início da description (ex.: `Reprodução/Instagram`), e também o título repetido no começo (inteiro ou encurtado, seguido de frase nova) e o nome do veículo grudado nele (ex.: CN7).
    - Se o título é chapéu e o feed não traz descrição (ex.: Prefeitura de Manaus com `NOTA`), o resumo vem do `og:description` da página.
    - **O `content:encoded` nunca é lido.**
 3. Descarta itens de domínios que não são de fontes cadastradas, como anúncios e links de terceiros, e itens cujo título casa com `ignoreTitles` em `config/category-rules.json` (regex no título sem acento e em minúsculas). Hoje a lista tem as matérias automáticas do g1 com resultado por seção eleitoral (`^resultado das eleicoes \d{4} em `) e os avisos de férias de colunistas da Folha.
@@ -223,6 +225,10 @@ Página única (`/`), renderizada no servidor e responsiva (mobile primeiro). O 
   - Imagens por hotlink: `<img loading="lazy" referrerPolicy="no-referrer">`, sem `next/image`, que faria proxy ou cópia. Se a imagem faltar ou falhar, aparece `public/placeholder.svg`.
 - **Estados**: há telas para lista vazia, busca sem resultado, rate limit, erro (`error.tsx`) e 404.
 - **`/fontes`**: lista os veículos ativos agrupados por escopo, com link para cada site e o contato de remoção (`CONTACT_EMAIL`).
+- **`/doar`**: página de doação, aberta pelo botão "Apoiar" do cabeçalho e pelo link do rodapé.
+  - **Pix**: o BR Code (`src/lib/pix.ts`, portado do qrcode-sys) e o QR são gerados no servidor. O QR é um SVG desenhado a partir da matriz da lib `qrcode`, sem script nem imagem externa. O padrão é valor livre (sem o campo 54, quem paga digita o valor no app do banco), com atalhos de R$ 5, 10 e 25 por link (`?valor=10`), que funcionam sem JavaScript. Há um botão de copiar o código e um campo com o copia e cola.
+  - **PayPal**: link de `PAYPAL_DONATE_URL` (só http/https).
+  - As variáveis são lidas em runtime: trocar a chave exige só recriar o container, sem rebuild. Sem Pix (`PIX_KEY`, `PIX_NAME` e `PIX_CITY`) nem PayPal, o botão e o link do rodapé somem. Use chave Pix aleatória (EVP), porque ela fica legível para quem ler o QR.
 
 ## Segurança da aplicação
 

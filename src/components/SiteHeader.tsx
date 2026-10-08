@@ -1,5 +1,7 @@
 import type { Location } from "@/lib/articles";
+import { donationsEnabled } from "@/lib/donation";
 import type { Filters } from "@/lib/filters";
+import { DonateButton } from "./DonateButton";
 import { LocationSelect } from "./LocationSelect";
 import { Logo } from "./Logo";
 import { SearchBar } from "./SearchBar";
@@ -12,8 +14,9 @@ export function SiteHeader({ filters, locations }: { filters: Filters; locations
         <div className="order-3 col-span-2 sm:order-none sm:col-span-1">
           <SearchBar filters={filters} />
         </div>
-        <div className="justify-self-end">
+        <div className="flex items-center gap-2 justify-self-end">
           <LocationSelect filters={filters} locations={locations} />
+          {donationsEnabled() && <DonateButton />}
         </div>
       </div>
     </header>

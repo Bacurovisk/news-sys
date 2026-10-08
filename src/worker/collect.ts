@@ -5,7 +5,7 @@ import { categoryFromRules, isIgnoredTitle, type loadRules } from "./categorize.
 import { config } from "./config.ts";
 import { imageFromFeed, metaFromPage, type FeedItemMedia } from "./image.ts";
 import { errorMessage, log } from "./logger.ts";
-import { canonicalUrl, cleanSummary, htmlToText, isKickerTitle, truncateWords, urlHash } from "./normalize.ts";
+import { canonicalUrl, cleanSummary, htmlToText, isKickerTitle, stripImageCaption, stripRepeatedTitle, truncateWords, urlHash } from "./normalize.ts";
 import { decodeBody, FetchError, safeFetch } from "./safe-fetch.ts";
 
 type CustomItem = FeedItemMedia & { summary?: string };
@@ -68,6 +68,7 @@ function toCandidates(
   feedUrl: string,
   isAllowedHost: (hostname: string) => boolean,
   ignoredTitles: RegExp[],
+  sourceName: string,
 ): Candidate[] {
   const now = new Date();
   const cutoff = new Date(now.getTime() - config.retentionDays * 86_400_000);
@@ -82,7 +83,7 @@ function toCandidates(
     if (!url || !isAllowedHost(new URL(url).hostname)) continue;
 
     let title = htmlToText(item.title);
-    let description = cleanSummary(htmlToText(item.summary ?? item.content));
+    let description = cleanSummary(htmlToText(stripImageCaption(item.summary ?? item.content)));
     if ((!title || isKickerTitle(title, url)) && description) {
       title = description;
       description = "";
@@ -99,7 +100,7 @@ function toCandidates(
     const publishedAt = d > now ? now : d;
     if (publishedAt < cutoff) continue;
 
-    const summary = truncateWords(description === title ? "" : description, config.summaryMaxChars);
+    const summary = truncateWords(stripRepeatedTitle(description, title, sourceName), config.summaryMaxChars);
     const needsSummary = !summary && isKickerTitle(title, url);
     out.push({ url, urlHash: hash, title, summary, publishedAt, needsSummary, item });
   }
@@ -137,7 +138,7 @@ async function fetchAndInsert(source: Source, ctx: CollectContext): Promise<Coll
     throw new FetchError("parse_error", errorMessage(err));
   }
 
-  const candidates = toCandidates(feed.items, source.feedUrl, ctx.isAllowedHost, ctx.ignoredTitles);
+  const candidates = toCandidates(feed.items, source.feedUrl, ctx.isAllowedHost, ctx.ignoredTitles, source.name);
   const existing = new Set(
     (
       await ctx.prisma.article.findMany({

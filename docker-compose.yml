@@ -83,6 +83,13 @@ services:
       DATABASE_URL: *database-url
       SITE_URL: ${SITE_URL:-https://news.neojr.com}
       CONTACT_EMAIL: ${CONTACT_EMAIL:?defina CONTACT_EMAIL no .env}
+      # Doação (/doar): opcionais; sem Pix nem PayPal o botão some.
+      PIX_KEY_TYPE: ${PIX_KEY_TYPE:-RANDOM}
+      PIX_KEY: ${PIX_KEY:-}
+      PIX_NAME: ${PIX_NAME:-}
+      PIX_CITY: ${PIX_CITY:-}
+      PIX_DESCRIPTION: ${PIX_DESCRIPTION:-neojr news}
+      PAYPAL_DONATE_URL: ${PAYPAL_DONATE_URL:-}
       NODE_OPTIONS: --max-old-space-size=256
     depends_on:
       news-db:

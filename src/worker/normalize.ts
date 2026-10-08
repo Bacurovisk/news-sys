@@ -44,7 +44,7 @@ export function htmlToText(input: string | undefined | null): string {
   if (!/[<&]/.test(input)) return input.replace(/\s+/g, " ").trim();
   const $ = cheerio.load(input, null, false);
   $("script, style, noscript, iframe, figure figcaption").remove();
-  $("br, p, div, li, h1, h2, h3, h4").after(" ");
+  $("br, p, div, li, h1, h2, h3, h4").before(" ").after(" ");
   let text = $.root().text();
   // Feeds às vezes escapam HTML duas vezes (&amp;quot;, &lt;p&gt;): segunda passada.
   if (/&(#\d+|#x[\da-f]+|[a-z]+);|<[a-z!/]/i.test(text)) {
@@ -58,6 +58,7 @@ export function htmlToText(input: string | undefined | null): string {
 const BOILERPLATE = [
   /\s*The post .+ appeared first on .+\.?$/i,
   /\s*O post .+ apareceu primeiro em .+\.?$/i,
+  /\s*The post .+ first appeared on .+\.?$/i,
   /\s*(Continue|Continuar) (lendo|a ler).*$/i,
   /\s*(Leia|Veja) (mais|também|tambem)\s*(\.{3}|…|»)?$/i,
   /\s*\[(…|\.\.\.)\]\s*$/,
@@ -67,6 +68,46 @@ export function cleanSummary(text: string): string {
   let out = text;
   for (const re of BOILERPLATE) out = out.replace(re, "");
   return out.trim();
+}
+
+/**
+ * g1: a description é `<img><br>` + legenda da foto + crédito + texto, uma linha cada.
+ * Remove legenda e crédito quando a segunda linha tem cara de crédito (curta, sem ponto final,
+ * ex.: "Reprodução/Instagram", "Jefferson Rudy/Agência Senado").
+ */
+export function stripImageCaption(html: string | undefined | null): string {
+  if (!html) return "";
+  const m = /^\s*<img[^>]*>\s*<br\s*\/?>/i.exec(html);
+  if (!m) return html;
+  const lines = html.slice(m[0].length).split("\n").map((l) => l.trim()).filter(Boolean);
+  const credit = lines[1] ?? "";
+  const looksLikeCredit =
+    lines.length >= 3 && credit.length <= 60 && (!/[.!?:;]$/.test(credit) || /\/|reprodu|divulga|foto/i.test(credit));
+  return looksLikeCredit ? lines.slice(2).join("\n").replace(/^[\s.,;:\-–—]+/u, "") : html;
+}
+
+const wordKey = (w: string) => unaccentLower(w).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+
+/**
+ * Tira do começo do resumo a repetição do título (ex.: CN7 e g1 começam a description pela
+ * manchete), inteira ou encurtada (6+ palavras), e o nome do veículo grudado logo depois.
+ * Só corta quando o resto começa frase nova (maiúscula, número ou aspas).
+ */
+export function stripRepeatedTitle(summary: string, title: string, sourceName = ""): string {
+  const words = summary.split(" ");
+  const titleKeys = title.split(" ").map(wordKey).filter(Boolean);
+  let m = 0;
+  while (m < words.length && m < titleKeys.length && wordKey(words[m]) === titleKeys[m]) m++;
+  if (m < titleKeys.length && m < 6) return summary;
+
+  let rest = words.slice(m);
+  // Só é repetição se o que sobra começa frase nova; "…, foi anunciada" é a própria frase continuando.
+  if (rest.length && !/^[\p{Lu}\p{N}"“'(]/u.test(rest[0])) return summary;
+  const nameKeys = sourceName.split(" ").map(wordKey).filter(Boolean);
+  if (nameKeys.length && nameKeys.every((k, i) => rest[i] !== undefined && wordKey(rest[i]) === k)) {
+    rest = rest.slice(nameKeys.length);
+  }
+  return rest.join(" ").replace(/^[\s\-–—:|.,;]+/u, "");
 }
 
 /** Corta em limite de palavra, com reticências, sem passar de max caracteres. */

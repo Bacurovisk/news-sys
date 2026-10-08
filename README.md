@@ -98,9 +98,10 @@ Se alterar a expressão de `searchVector`, altere também `news_tsquery` na mesm
    - URL canônica: sem `utm_*`, `fbclid`, `gclid` e fragmento, e com redirecionadores `…/*https://…` desembrulhados.
    - Deduplicação por SHA-256 da URL.
    - Título e resumo em texto puro; o resumo é cortado em até 280 caracteres, em limite de palavra.
-   - Quando o título é só um "chapéu" e a manchete vem na description, a description vira o título. Há dois casos: chapéu em maiúsculas (ex.: `AO VIVO`) e nome do colunista ou do blog em links de `/colunas/` ou `/blogs/` (ex.: UOL com `Mariana Barbosa`).
+   - Quando o título é só um "chapéu" e a manchete vem na description, a description vira o título. Contam como chapéu: texto em maiúsculas (ex.: `AO VIVO`), chamadas como `Clique aqui` ou `Leia mais`, e o nome do colunista ou do blog em links de `/colunas/`, `/colunistas/` ou `/blogs/` (ex.: UOL com `Mariana Barbosa`).
+   - Se o título é chapéu e o feed não traz descrição (ex.: Prefeitura de Manaus com `NOTA`), o resumo vem do `og:description` da página.
    - **O `content:encoded` nunca é lido.**
-3. Descarta itens de domínios que não são de fontes cadastradas, como anúncios e links de terceiros, e itens cujo título casa com `ignoreTitles` em `config/category-rules.json` (regex no título sem acento e em minúsculas). Hoje a lista tem só as matérias automáticas do g1 com resultado por seção eleitoral (`^resultado das eleicoes \d{4} em `).
+3. Descarta itens de domínios que não são de fontes cadastradas, como anúncios e links de terceiros, e itens cujo título casa com `ignoreTitles` em `config/category-rules.json` (regex no título sem acento e em minúsculas). Hoje a lista tem as matérias automáticas do g1 com resultado por seção eleitoral (`^resultado das eleicoes \d{4} em `) e os avisos de férias de colunistas da Folha.
 4. Escolhe a imagem nesta ordem: `media:content`/`media:thumbnail` → `enclosure` de imagem → primeira `<img>` da description → `og:image` lido apenas do `<head>` da página, respeitando o `robots.txt`.
    - Busca no máximo 25 páginas por feed em cada ciclo; o excedente fica para o ciclo seguinte.
    - Descarta imagens genéricas (nome do arquivo com `logo`, `preview-share` etc.); nesse caso o card mostra o placeholder.
@@ -122,7 +123,7 @@ Se alterar a expressão de `searchVector`, altere também `news_tsquery` na mesm
 
 **Logs**: um JSON por linha no stdout, pronto para o Wazuh. Eventos:
 - `worker_start`, `feed_done`, `feed_failed`, `feed_deactivated`, `feed_clock_skew`
-- `og_image_failed`, `cycle_done`, `retention_done`, `worker_stopping`, `worker_stopped`
+- `page_meta_failed`, `cycle_done`, `retention_done`, `worker_stopping`, `worker_stopped`
 
 ```json
 {"ts":"2026-10-08T15:26:28.041Z","level":"info","event":"cycle_done","feeds":44,"ok":44,"failed":0,"newArticles":272,"durationMs":54040}

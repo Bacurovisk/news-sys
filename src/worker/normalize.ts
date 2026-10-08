@@ -79,14 +79,16 @@ export function truncateWords(text: string, max: number): string {
 }
 
 // "Chapéu" no lugar do título: UOL manda <title>AO VIVO</title> ou, em colunas e blogs,
-// <title>Mariana Barbosa</title>, com a manchete na description.
+// <title>Mariana Barbosa</title>, com a manchete na description; a BBC às vezes manda
+// <title>Clique aqui</title>.
 const KICKER = /^[\p{Lu}\p{N}\s!?:.\-–]{1,20}$/u;
-const COLUMN_PATH = /\/(colunas?|blogs?)\//i;
+const CALL_TO_ACTION = /^(clique aqui|leia mais|saiba mais|veja mais|veja aqui|confira|assista)[\s.!:…]*$/iu;
+const COLUMN_PATH = /\/(colunas?|colunistas?|blogs?)\//i;
 // Nome próprio: até 5 palavras com inicial maiúscula, aceitando "de", "da", "em", "e"...
 const NAME_LIKE = /^\p{Lu}[\p{L}'.-]*(\s+(d[aeo]s?|e|em|\p{Lu}[\p{L}'.-]*)){0,4}$/u;
 
 export function isKickerTitle(title: string, url: string): boolean {
-  if (KICKER.test(title)) return true;
+  if (KICKER.test(title) || CALL_TO_ACTION.test(title)) return true;
   return COLUMN_PATH.test(new URL(url).pathname) && NAME_LIKE.test(title);
 }
 

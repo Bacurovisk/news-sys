@@ -3,7 +3,7 @@ import Parser from "rss-parser";
 import type { PrismaClient, Source } from "@/generated/prisma/client.ts";
 import { categoryFromRules, isIgnoredTitle, type loadRules } from "./categorize.ts";
 import { config } from "./config.ts";
-import { imageFromFeed, imageFromPage, type FeedItemMedia } from "./image.ts";
+import { imageFromFeed, metaFromPage, type FeedItemMedia } from "./image.ts";
 import { errorMessage, log } from "./logger.ts";
 import { canonicalUrl, cleanSummary, htmlToText, isKickerTitle, truncateWords, urlHash } from "./normalize.ts";
 import { decodeBody, FetchError, safeFetch } from "./safe-fetch.ts";
@@ -38,6 +38,8 @@ type Candidate = {
   title: string;
   summary: string;
   publishedAt: Date;
+  /** título continua sendo chapéu (ex.: "NOTA") e o feed não trouxe descrição: resumo vem da página */
+  needsSummary: boolean;
   item: CustomItem;
 };
 
@@ -98,7 +100,8 @@ function toCandidates(
     if (publishedAt < cutoff) continue;
 
     const summary = truncateWords(description === title ? "" : description, config.summaryMaxChars);
-    out.push({ url, urlHash: hash, title, summary, publishedAt, item });
+    const needsSummary = !summary && isKickerTitle(title, url);
+    out.push({ url, urlHash: hash, title, summary, publishedAt, needsSummary, item });
   }
   return out;
 }
@@ -154,16 +157,19 @@ async function fetchAndInsert(source: Source, ctx: CollectContext): Promise<Coll
   const data = [];
   for (const c of fresh) {
     let imageUrl = imageFromFeed(c.item, c.url);
-    if (!imageUrl) {
+    let summary = c.summary;
+    if (!imageUrl || c.needsSummary) {
       if (ogFetches >= config.maxOgFetchesPerFeed) {
         deferred++;
         continue;
       }
       ogFetches++;
       try {
-        imageUrl = await imageFromPage(c.url, ctx.isAllowedHost);
+        const meta = await metaFromPage(c.url, ctx.isAllowedHost);
+        imageUrl ??= meta.image;
+        if (c.needsSummary) summary = truncateWords(cleanSummary(htmlToText(meta.description)), config.summaryMaxChars);
       } catch (err) {
-        log("warn", "og_image_failed", { sourceId: source.id, url: c.url, error: errorMessage(err) });
+        log("warn", "page_meta_failed", { sourceId: source.id, url: c.url, error: errorMessage(err) });
       }
     }
 
@@ -177,7 +183,7 @@ async function fetchAndInsert(source: Source, ctx: CollectContext): Promise<Coll
       url: c.url,
       urlHash: c.urlHash,
       title: c.title,
-      summary: c.summary,
+      summary,
       imageUrl,
       publishedAt: c.publishedAt,
       categoryId,

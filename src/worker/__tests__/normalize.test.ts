@@ -59,3 +59,12 @@ test("isKickerTitle: chapéu em maiúsculas e nome de colunista/blog", () => {
   // nome fora de coluna/blog: fica (ex.: matéria sobre uma pessoa)
   assert.equal(isKickerTitle("Mariana Barbosa", "https://g1.globo.com/noticia/x.ghtml"), false);
 });
+
+test("isKickerTitle: chamadas genéricas e /colunistas/", () => {
+  const any = "https://www.bbc.com/portuguese/articles/x";
+  assert.equal(isKickerTitle("Clique aqui", any), true);
+  assert.equal(isKickerTitle("Leia mais…", any), true);
+  assert.equal(isKickerTitle("Clique aqui e veja o mapa da votação", any), false);
+  assert.equal(isKickerTitle("Rosana Hermann", "https://f5.folha.uol.com.br/colunistas/rosana-hermann/2026/10/x.shtml"), true);
+  assert.equal(isKickerTitle("Salmão à Das Dorf", "https://ocp.news/colunistas/salmao-a-das-dorf"), false);
+});

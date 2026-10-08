@@ -80,12 +80,18 @@ export function imageFromFeed(item: FeedItemMedia, base: string): string | null 
   return null;
 }
 
-/** Fallback: lê só o <head> da página e pega og:image / twitter:image. */
-export async function imageFromPage(
+export type PageMeta = { image: string | null; description: string };
+
+/**
+ * Fallback: lê só o <head> da página e pega og:image / twitter:image e og:description
+ * (usada como resumo quando o feed não traz manchete nem descrição).
+ */
+export async function metaFromPage(
   pageUrl: string,
   isAllowedHost: (h: string) => boolean,
-): Promise<string | null> {
-  if (!(await robotsAllows(pageUrl, isAllowedHost))) return null;
+): Promise<PageMeta> {
+  const empty = { image: null, description: "" };
+  if (!(await robotsAllows(pageUrl, isAllowedHost))) return empty;
   const res = await safeFetch(pageUrl, {
     isAllowedHost,
     headers: { "user-agent": config.userAgent, accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5" },
@@ -94,21 +100,25 @@ export async function imageFromPage(
     onLimit: "truncate",
     stopWhen: (body) => /<\/head\s*>|<body[\s>]/i.test(body.toString("latin1")),
   });
-  if (res.status !== 200) return null;
-  if (!/html/i.test(String(res.headers["content-type"] ?? ""))) return null;
+  if (res.status !== 200) return empty;
+  if (!/html/i.test(String(res.headers["content-type"] ?? ""))) return empty;
 
   const html = decodeBody(res.body, String(res.headers["content-type"] ?? ""));
   const $ = cheerio.load(html);
-  const candidates = [
-    $('meta[property="og:image:secure_url"]').attr("content"),
-    $('meta[property="og:image"]').attr("content"),
-    $('meta[name="og:image"]').attr("content"),
-    $('meta[name="twitter:image"]').attr("content"),
-    $('meta[property="twitter:image"]').attr("content"),
+  const meta = (attr: "property" | "name", key: string) => $(`meta[${attr}="${key}"]`).attr("content");
+  const images = [
+    meta("property", "og:image:secure_url"),
+    meta("property", "og:image"),
+    meta("name", "og:image"),
+    meta("name", "twitter:image"),
+    meta("property", "twitter:image"),
   ];
-  for (const c of candidates) {
-    const url = usableImage(c, res.url);
-    if (url) return url;
+  let image: string | null = null;
+  for (const c of images) {
+    image = usableImage(c, res.url);
+    if (image) break;
   }
-  return null;
+  const description =
+    meta("property", "og:description") ?? meta("name", "description") ?? meta("name", "twitter:description") ?? "";
+  return { image, description };
 }

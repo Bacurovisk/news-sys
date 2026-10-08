@@ -18,6 +18,7 @@ test("ignoreTitles (arquivo real): descarta resultado automático por seção el
     isIgnoredTitle(ignored, "Resultado das eleições 2026 em São Gabriel da Cachoeira (AM): votação para presidente na 19ª zona eleitoral"),
     true,
   );
+  assert.equal(isIgnoredTitle(ignored, "O colunista está em férias Leia mais (10/08/2026 - 15h47)"), true);
   assert.equal(isIgnoredTitle(ignored, "Resultado das eleições: o que muda no Congresso"), false);
   assert.equal(isIgnoredTitle(ignored, "TSE divulga resultado das eleições 2026 em Manaus"), false);
 });

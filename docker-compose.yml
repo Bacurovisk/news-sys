@@ -1,0 +1,165 @@
+# news-sys — https://news.neojr.com
+# Na VPS: ~/docker/news-sys, com .env (cópia de .env.deploy, chmod 600) ao lado deste arquivo.
+#   docker compose up -d --build
+# Ordem: news-db (saudável) → news-migrate (migrations + seed, one-shot) → news-app e news-worker.
+name: news-sys
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-database-url: &database-url postgresql://${POSTGRES_USER:?defina POSTGRES_USER no .env}:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}@news-db:5432/${POSTGRES_DB:?defina POSTGRES_DB no .env}
+
+x-image-build: &image-build
+  context: .
+  target: runner
+
+services:
+  news-db:
+    image: postgres:16-alpine
+    container_name: news-sys-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Ajustado para caber em 256 MB.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - effective_cache_size=160MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - max_connections=30
+      - -c
+      - timezone=UTC
+    volumes:
+      - news_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
+    # Só a rede interna: sem acesso à rede do proxy nem à internet.
+    networks:
+      - news-internal
+    logging: *logging
+
+  news-migrate:
+    build:
+      context: .
+      target: migrator
+    image: news-sys-migrate:latest
+    container_name: news-sys-migrate
+    restart: "no"
+    command: ["sh", "-c", "npx prisma migrate deploy && node dist/seed.mjs"]
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      news-db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - news-internal
+    logging: *logging
+
+  news-app:
+    build: *image-build
+    image: news-sys:latest
+    container_name: news-sys-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: *database-url
+      SITE_URL: ${SITE_URL:-https://news.neojr.com}
+      CONTACT_EMAIL: ${CONTACT_EMAIL:?defina CONTACT_EMAIL no .env}
+      NODE_OPTIONS: --max-old-space-size=256
+    depends_on:
+      news-db:
+        condition: service_healthy
+      news-migrate:
+        condition: service_completed_successfully
+    # Sem `ports`: só o Nginx Proxy Manager (rede npm_default) alcança a porta 3000.
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 384m
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache:uid=1001,gid=1001,mode=0700
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - news-internal
+      - npm_default
+    logging: *logging
+
+  news-worker:
+    build: *image-build
+    image: news-sys:latest
+    container_name: news-sys-worker
+    restart: unless-stopped
+    command: ["node", "dist/worker.mjs"]
+    environment:
+      DATABASE_URL: *database-url
+      WORKER_INTERVAL_MINUTES: ${WORKER_INTERVAL_MINUTES:-20}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-3}
+      RETENTION_DAYS: ${RETENTION_DAYS:-90}
+      NODE_OPTIONS: --max-old-space-size=192
+    depends_on:
+      news-db:
+        condition: service_healthy
+      news-migrate:
+        condition: service_completed_successfully
+    # Heartbeat gravado a cada ciclo; mais de 60 min sem ciclo = unhealthy.
+    healthcheck:
+      test: ["CMD", "node", "-e", "const s=require('fs').statSync('/tmp/news-worker-heartbeat');process.exit(Date.now()-s.mtimeMs<3600e3?0:1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10m
+    # Termina os feeds em andamento (timeout de 10 s cada) antes de parar.
+    stop_grace_period: 30s
+    mem_limit: 256m
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - news-internal
+      - news-egress
+    logging: *logging
+
+volumes:
+  news_db_data:
+
+networks:
+  # Interna: banco, migrations, app e worker. Sem saída para a internet.
+  news-internal:
+    internal: true
+  # Saída para a internet, só para o worker buscar os feeds.
+  news-egress:
+  # Rede do Nginx Proxy Manager na VPS (já existe; criada pela stack do NPM).
+  npm_default:
+    external: true

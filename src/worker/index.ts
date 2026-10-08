@@ -1,6 +1,7 @@
 // Worker de coleta. Uso:
 //   tsx src/worker/index.ts          loop contínuo (intervalo WORKER_INTERVAL_MINUTES)
 //   tsx src/worker/index.ts --once   um único ciclo e sai
+import { writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { prisma } from "@/lib/db";
 import { collectSource, type CollectContext } from "./collect.ts";
@@ -10,6 +11,16 @@ import { makeHostAllowList } from "./domains.ts";
 import { errorMessage, log } from "./logger.ts";
 
 const RETENTION_JOB = "retention";
+// Atualizado a cada ciclo; o healthcheck do container confere a idade deste arquivo.
+const HEARTBEAT_FILE = process.env.WORKER_HEARTBEAT_FILE ?? "/tmp/news-worker-heartbeat";
+
+function heartbeat(): void {
+  try {
+    writeFileSync(HEARTBEAT_FILE, new Date().toISOString());
+  } catch (err) {
+    log("warn", "heartbeat_failed", { error: errorMessage(err) });
+  }
+}
 const stopController = new AbortController();
 
 async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
@@ -95,6 +106,7 @@ async function main(): Promise<void> {
     rules: RULES_PATH,
   });
 
+  heartbeat();
   for (const sig of ["SIGTERM", "SIGINT"] as const) {
     process.on(sig, () => {
       log("info", "worker_stopping", { signal: sig });
@@ -110,6 +122,7 @@ async function main(): Promise<void> {
     }
     try {
       await runCycle();
+      heartbeat();
     } catch (err) {
       log("error", "cycle_failed", { error: errorMessage(err) });
     }

@@ -51,3 +51,14 @@ test("rateLimit bloqueia após o limite e isola chaves", () => {
   assert.equal(rateLimit("t:a", 3, 60_000).ok, false);
   assert.equal(rateLimit("t:b", 3, 60_000).ok, true);
 });
+
+test("clientIp: X-Real-IP do proxy; CF-Connecting-IP só vindo do Cloudflare", async () => {
+  const { clientIp } = await import("../rate-limit.ts");
+  const h = (o: Record<string, string>) => new Headers(o);
+  assert.equal(clientIp(h({})), "local");
+  assert.equal(clientIp(h({ "x-real-ip": "200.1.2.3" })), "200.1.2.3");
+  assert.equal(clientIp(h({ "x-real-ip": "200.1.2.3", "cf-connecting-ip": "9.9.9.9" })), "200.1.2.3", "forjado fora do Cloudflare");
+  assert.equal(clientIp(h({ "x-real-ip": "172.70.1.1", "cf-connecting-ip": "177.10.20.30" })), "177.10.20.30");
+  assert.equal(clientIp(h({ "x-real-ip": "2606:4700::1", "cf-connecting-ip": "2804:14c::1" })), "2804:14c::1");
+  assert.equal(clientIp(h({ "x-real-ip": "172.70.1.1", "cf-connecting-ip": "lixo" })), "172.70.1.1");
+});

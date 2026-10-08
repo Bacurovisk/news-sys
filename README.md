@@ -42,6 +42,7 @@ npm run dev                 # http://localhost:3000
 | `npm run db:generate` | Regera o Prisma Client em `src/generated/prisma` |
 | `npm run worker` | Worker de coleta em loop (intervalo `WORKER_INTERVAL_MINUTES`) |
 | `npm run worker:once` | Um único ciclo de coleta e sai |
+| `npm run build:worker` | Empacota `dist/worker.mjs` e `dist/seed.mjs` com esbuild (usado no Dockerfile) |
 | `npm run feeds:validate` | Valida de verdade todos os feeds do seed (aceita um JSON de candidatas) |
 | `npm test` | Testes unitários (`node:test`): normalização, SSRF, robots.txt, categorias, filtros, cursor, rate limit |
 
@@ -229,11 +230,46 @@ Página única (`/`), renderizada no servidor e responsiva (mobile primeiro). O 
   - O IP vem de `X-Real-IP`, definido pelo Nginx Proxy Manager. O `X-Forwarded-For` não é usado porque o cliente pode forjá-lo.
   - O estado vale para um único processo do Next.
 
+## Docker e deploy
+
+O passo a passo completo está em [`DEPLOY.md`](DEPLOY.md): DNS no Cloudflare, rsync, segredos, Nginx Proxy Manager, verificação, atualização, backup e restauração.
+
+`Dockerfile` multi-stage (`node:22.23.2-bookworm-slim`), com estes estágios:
+
+| Estágio | Conteúdo | Uso |
+|---|---|---|
+| `deps` | `npm ci` | cache de dependências |
+| `builder` | `prisma generate`, `next build` (standalone), `npm run build:worker` (esbuild → `dist/worker.mjs`, `dist/seed.mjs`) | só build |
+| `runner` (cerca de 450 MB) | standalone do Next + `dist/` + `config/`; usuário `nextjs` (uid 1001) | `news-app` (`node server.js`) e `news-worker` (`node dist/worker.mjs`) |
+| `migrator` (cerca de 710 MB) | só o Prisma CLI 7.10.0, schema, migrations e `dist/seed.mjs`; usuário `node` | `news-migrate` |
+
+O worker e o seed são empacotados com esbuild em arquivos únicos, então rodam sem `tsx` e sem o `node_modules` completo.
+
+`docker-compose.yml` (projeto `news-sys`):
+
+| Serviço | Container | Detalhes |
+|---|---|---|
+| `news-db` | `news-sys-db` | `postgres:16-alpine`, 256 MB, volume nomeado, healthcheck, só na rede interna |
+| `news-migrate` | `news-sys-migrate` | one-shot: `prisma migrate deploy` + seed idempotente |
+| `news-app` | `news-sys-app` | 384 MB, porta 3000 sem publicar no host, redes `news-internal` e `npm_default` (externa) |
+| `news-worker` | `news-sys-worker` | 256 MB, redes `news-internal` e `news-egress` (saída para a internet) |
+
+- `news-app` e `news-worker` só sobem depois de `news-migrate` terminar com sucesso.
+- O app tem healthcheck em `/api/health`; o worker, um arquivo de heartbeat gravado a cada ciclo.
+- Os dois rodam com sistema de arquivos somente leitura, `cap_drop: ALL` e `no-new-privileges`.
+- Logs `json-file` com rotação (10 MB × 3).
+
+Para testar o compose localmente, crie a rede do proxy uma vez (`docker network create npm_default`) e passe um arquivo de variáveis com `POSTGRES_*` e `CONTACT_EMAIL`:
+
+```bash
+docker compose --env-file /caminho/teste.env up -d --build
+```
+
 ## Status do projeto
 
 - [x] **Fase 1:** plano (estrutura e schema)
 - [x] **Fase 2:** scaffold, Prisma 7, migration com full-text, seed de categorias
 - [x] **Fase 3:** worker de coleta e seed de fontes validadas
 - [x] **Fase 4:** interface (busca, filtros, paginação, `/fontes`)
-- [ ] **Fase 5:** Docker Compose e `DEPLOY.md`
+- [x] **Fase 5:** Docker Compose e `DEPLOY.md`
 - [ ] **Fase 6:** verificação ponta a ponta

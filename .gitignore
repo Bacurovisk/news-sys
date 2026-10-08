@@ -13,6 +13,7 @@ src/generated/
 # segredos: nenhum .env real entra no git
 .env*
 !.env.example
+DEPLOY.md
 
 # postgres embutido de desenvolvimento
 .devdb/
@@ -21,3 +22,7 @@ src/generated/
 .DS_Store
 *.log
 coverage/
+
+# bundles do worker/seed (gerados no build da imagem)
+dist/
+

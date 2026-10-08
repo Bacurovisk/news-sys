@@ -1,0 +1,13 @@
+# Segredos: nenhum .env real entra no contexto de build (nem na imagem).
+.env*
+!.env.example
+
+node_modules
+.next
+.git
+.devdb
+dist
+src/generated
+*.tsbuildinfo
+npm-debug.log*
+coverage

@@ -17,6 +17,7 @@ export type FeedItemMedia = {
   content?: string; // description (RSS) ou content (Atom) — nunca content:encoded
 };
 
+const MIN_MEDIA_WIDTH = 150;
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif)(\?|$)/i;
 
 function looksLikeImage(node: Record<string, string | undefined>): boolean {
@@ -35,6 +36,8 @@ function bestMedia(nodes: MediaNode[] | undefined, base: string): string | null 
     const url = safeHttpUrl(attrs.url, base);
     if (!url) continue;
     const width = Number(attrs.width) || 0;
+    // Miniaturas declaradas pequenas costumam ser avatar do autor, não a foto da notícia.
+    if (width > 0 && width < MIN_MEDIA_WIDTH) continue;
     if (!best || width > best.width) best = { url, width };
   }
   return best?.url ?? null;

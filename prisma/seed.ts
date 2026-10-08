@@ -1,8 +1,10 @@
 // Seed idempotente: pode rodar a cada deploy.
 // Categorias: upsert por slug. Fontes: upsert por feedUrl, sem tocar no estado de coleta
 // (etag, falhas, active) de fontes já existentes; fontes fora da lista são desativadas.
+// Roles do site e do worker: criadas/atualizadas com os GRANT de menor privilégio (db-roles.ts).
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client.ts";
+import { setupDbRoles } from "./db-roles.ts";
 import { categories } from "./seed-data/categories.ts";
 import { sources } from "./seed-data/sources/index.ts";
 
@@ -51,8 +53,10 @@ async function main() {
     data: { active: false },
   });
 
+  const roles = await setupDbRoles(prisma);
+
   console.log(
-    JSON.stringify({ event: "seed_done", categories: categories.length, sources: sources.length, deactivated }),
+    JSON.stringify({ event: "seed_done", categories: categories.length, sources: sources.length, deactivated, roles }),
   );
 }
 

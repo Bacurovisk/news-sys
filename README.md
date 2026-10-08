@@ -52,7 +52,8 @@ Veja `.env.example`. Regras:
 
 - **Nunca** crie `.env.production`: o Next carrega esse arquivo sozinho e ele acaba dentro da imagem.
 - No servidor use `.env.deploy`, copiado como `.env` com permissão `600`.
-- A senha do Postgres deve ser só alfanumérica.
+- A senha do Postgres deve ser só alfanumérica. O mesmo vale para `NEWS_APP_DB_PASSWORD` e `NEWS_WORKER_DB_PASSWORD` (16 ou mais caracteres), porque as três entram na URL de conexão.
+- `NEWS_APP_DB_PASSWORD` e `NEWS_WORKER_DB_PASSWORD` são as senhas dos usuários do banco do site e do worker (ver "Usuários do banco"). São obrigatórias no compose. Em dev são opcionais: vazias, o seed não cria as roles e tudo usa o `DATABASE_URL`.
 - `SHADOW_DATABASE_URL` é opcional e só serve em dev, para `prisma migrate diff --from-migrations`.
 - `CATEGORY_RULES_PATH` é opcional (padrão `config/category-rules.json`).
 - `PIX_KEY_TYPE`, `PIX_KEY`, `PIX_NAME`, `PIX_CITY`, `PIX_DESCRIPTION` e `PAYPAL_DONATE_URL` configuram a página de doação e são opcionais (ver "Doação").
@@ -250,6 +251,25 @@ Página única (`/`), renderizada no servidor e responsiva (mobile primeiro). O 
   - O IP vem de `X-Real-IP`, definido pelo Nginx Proxy Manager. O `X-Forwarded-For` não é usado porque o cliente pode forjá-lo.
   - O estado vale para um único processo do Next.
 
+### Usuários do banco (menor privilégio)
+
+Cada serviço conecta com um usuário diferente. Se um dia aparecer uma SQL injection, ela não pode usar um superusuário, que permitiria `COPY … TO PROGRAM` (comando no container do banco), ler arquivos do servidor e apagar o que quisesse.
+
+| Serviço | Usuário | Permissões |
+|---|---|---|
+| `news-migrate` | `POSTGRES_USER` (superusuário, dono das tabelas) | tudo: migrations e seed |
+| `news-app` | `news_app` | `SELECT` nas tabelas |
+| `news-worker` | `news_worker` | `SELECT` nas tabelas; `INSERT/UPDATE/DELETE` em `Article` (coleta e retenção); `UPDATE` em `Source` (ETag, último fetch, desativação); `INSERT/UPDATE` em `JobRun` (controle da retenção); `USAGE` em `Article_id_seq` |
+
+- As duas roles são `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`, sem `CREATE` no schema `public`, sem acesso a `_prisma_migrations` e sem tabela temporária (o `TEMP` do `PUBLIC` no banco é revogado; elas recebem só `CONNECT`).
+- Têm `EXECUTE` em `f_unaccent` e `news_tsquery`, usadas pela busca e pela coluna gerada `searchVector`. O `PUBLIC` já tem por padrão; o `GRANT` explícito evita depender disso.
+- Quem cria e atualiza é o seed (`prisma/db-roles.ts`), a cada deploy, dentro de uma transação:
+  - cria a role se faltar e roda `ALTER ROLE … PASSWORD` sempre, então trocar a variável troca a senha;
+  - a senha entra por parâmetro (`set_config`), e um bloco `DO` monta o comando com `format('%L')`, sem concatenar no SQL;
+  - revoga tudo nas tabelas e sequences e aplica de novo a lista de `GRANT`. O que sair da lista deixa de valer no deploy seguinte.
+- Tabela nova criada por migration: o `ALTER DEFAULT PRIVILEGES` já dá `SELECT` às duas roles, e o seed reaplica no mesmo deploy. Se o worker precisar escrever nela, acrescente o `GRANT` em `WORKER_WRITES` (`prisma/db-roles.ts`), senão ele recebe `permission denied`.
+- Como o volume do banco de produção já existe, isso não usa `/docker-entrypoint-initdb.d`, que só roda em banco vazio.
+
 ## Docker e deploy
 
 O passo a passo de produção (DNS, Nginx Proxy Manager, segredos, backup) fica num `DEPLOY.md` local, fora do repositório (está no `.gitignore` porque o repositório é público).
@@ -270,7 +290,7 @@ O worker e o seed são empacotados com esbuild em arquivos únicos, então rodam
 | Serviço | Container | Detalhes |
 |---|---|---|
 | `news-db` | `news-sys-db` | `postgres:16-alpine`, 256 MB, volume nomeado, healthcheck, só na rede interna |
-| `news-migrate` | `news-sys-migrate` | one-shot: `prisma migrate deploy` + seed idempotente |
+| `news-migrate` | `news-sys-migrate` | one-shot: `prisma migrate deploy` + seed idempotente (inclui as roles `news_app` e `news_worker`) |
 | `news-app` | `news-sys-app` | 384 MB, porta 3000 sem publicar no host, redes `news-internal` e `npm_default` (externa) |
 | `news-worker` | `news-sys-worker` | 256 MB, redes `news-internal` e `news-egress` (saída para a internet) |
 
@@ -279,7 +299,7 @@ O worker e o seed são empacotados com esbuild em arquivos únicos, então rodam
 - Os dois rodam com sistema de arquivos somente leitura, `cap_drop: ALL` e `no-new-privileges`.
 - Logs `json-file` com rotação (10 MB × 3).
 
-Para testar o compose localmente, crie a rede do proxy uma vez (`docker network create npm_default`) e passe um arquivo de variáveis com `POSTGRES_*` e `CONTACT_EMAIL`:
+Para testar o compose localmente, crie a rede do proxy uma vez (`docker network create npm_default`) e passe um arquivo de variáveis com `POSTGRES_*`, `NEWS_APP_DB_PASSWORD`, `NEWS_WORKER_DB_PASSWORD` e `CONTACT_EMAIL`:
 
 ```bash
 docker compose --env-file /caminho/teste.env up -d --build

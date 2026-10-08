@@ -10,7 +10,14 @@ x-logging: &logging
     max-size: "10m"
     max-file: "3"
 
+# Um usuário do banco por serviço (menor privilégio):
+# - news-migrate: POSTGRES_USER (superusuário, dono das tabelas). Roda migrations e seed,
+#   e o seed cria/atualiza as roles abaixo com os GRANT (prisma/db-roles.ts).
+# - news-app: news_app, só leitura.
+# - news-worker: news_worker, só as escritas da coleta e da retenção.
 x-database-url: &database-url postgresql://${POSTGRES_USER:?defina POSTGRES_USER no .env}:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}@news-db:5432/${POSTGRES_DB:?defina POSTGRES_DB no .env}
+x-app-database-url: &app-database-url postgresql://news_app:${NEWS_APP_DB_PASSWORD:?defina NEWS_APP_DB_PASSWORD no .env}@news-db:5432/${POSTGRES_DB:?defina POSTGRES_DB no .env}
+x-worker-database-url: &worker-database-url postgresql://news_worker:${NEWS_WORKER_DB_PASSWORD:?defina NEWS_WORKER_DB_PASSWORD no .env}@news-db:5432/${POSTGRES_DB:?defina POSTGRES_DB no .env}
 
 x-image-build: &image-build
   context: .
@@ -65,6 +72,8 @@ services:
     command: ["sh", "-c", "npx prisma migrate deploy && node dist/seed.mjs"]
     environment:
       DATABASE_URL: *database-url
+      NEWS_APP_DB_PASSWORD: ${NEWS_APP_DB_PASSWORD:?defina NEWS_APP_DB_PASSWORD no .env}
+      NEWS_WORKER_DB_PASSWORD: ${NEWS_WORKER_DB_PASSWORD:?defina NEWS_WORKER_DB_PASSWORD no .env}
     depends_on:
       news-db:
         condition: service_healthy
@@ -80,7 +89,7 @@ services:
     container_name: news-sys-app
     restart: unless-stopped
     environment:
-      DATABASE_URL: *database-url
+      DATABASE_URL: *app-database-url
       SITE_URL: ${SITE_URL:-https://news.neojr.com}
       CONTACT_EMAIL: ${CONTACT_EMAIL:?defina CONTACT_EMAIL no .env}
       # Doação (/doar): opcionais; sem Pix nem PayPal o botão some.
@@ -126,7 +135,7 @@ services:
     restart: unless-stopped
     command: ["node", "dist/worker.mjs"]
     environment:
-      DATABASE_URL: *database-url
+      DATABASE_URL: *worker-database-url
       WORKER_INTERVAL_MINUTES: ${WORKER_INTERVAL_MINUTES:-20}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-3}
       RETENTION_DAYS: ${RETENTION_DAYS:-90}

@@ -43,7 +43,7 @@ npm run dev                 # http://localhost:3000
 | `npm run worker` | Worker de coleta em loop (intervalo `WORKER_INTERVAL_MINUTES`) |
 | `npm run worker:once` | Um único ciclo de coleta e sai |
 | `npm run feeds:validate` | Valida de verdade todos os feeds do seed (aceita um JSON de candidatas) |
-| `npm test` | Testes unitários (`node:test`): normalização, SSRF, robots.txt, categorias |
+| `npm test` | Testes unitários (`node:test`): normalização, SSRF, robots.txt, categorias, filtros, cursor, rate limit |
 
 ### Variáveis de ambiente
 
@@ -175,11 +175,65 @@ Não entraram:
 | CM Manaus | XML inválido |
 | Feeds gerais de Agência Brasil, g1 e Folha | ok, mas ficaram de fora para não duplicar as editorias com categoria aleatória |
 
+## Interface
+
+Página única (`/`), renderizada no servidor e responsiva (mobile primeiro). O tema claro ou escuro segue o `prefers-color-scheme`. De cima para baixo:
+
+1. Logo, que leva para `/`.
+2. Barra de busca.
+3. Seletor de localização.
+4. Barra de categorias: rolagem horizontal no celular; no desktop quebra linha.
+5. Lista de cards: miniatura 4:3 à esquerda; à direita título, resumo e a linha "Fonte · há 2 h · Categoria".
+
+**Filtros na URL**, para links compartilháveis: `?q=&uf=&cidade=&cat=`.
+- Todos são validados em `src/lib/filters.ts` e `resolveFilters`. Valores inexistentes são ignorados.
+- `q` é limitado a 100 caracteres.
+
+| Filtro | Efeito |
+|---|---|
+| sem `uf` ("Brasil (nacional)") | todas as notícias, nacionais e regionais |
+| `uf=AM` | só notícias de fontes do Amazonas (estaduais e municipais) |
+| `uf=AM&cidade=Manaus` | só fontes municipais de Manaus |
+| `cat=<slug>` | categoria; combina com os demais filtros |
+| `q=<texto>` | busca full-text; ordena por relevância + recência |
+
+**Comportamento da interface**
+- **Paginação**: botão "Carregar mais".
+  - Com JavaScript, busca `/api/articles` e anexa os cards na mesma página.
+  - Sem JavaScript, é um link `?cursor=…` que abre a página seguinte.
+  - O cursor é keyset na listagem e offset na busca (até 200 resultados).
+- **Busca e seletor de localização**: são formulários GET, então funcionam sem JavaScript; com JS, o seletor navega ao trocar de opção.
+- **Cards**:
+  - Cada card leva à matéria original (`target="_blank" rel="noopener noreferrer"`).
+  - Imagens por hotlink: `<img loading="lazy" referrerPolicy="no-referrer">`, sem `next/image`, que faria proxy ou cópia. Se a imagem faltar ou falhar, aparece `public/placeholder.svg`.
+- **Estados**: há telas para lista vazia, busca sem resultado, rate limit, erro (`error.tsx`) e 404.
+- **`/fontes`**: lista os veículos ativos agrupados por escopo, com link para cada site e o contato de remoção (`CONTACT_EMAIL`).
+
+## Segurança da aplicação
+
+- **XSS**:
+  - Nenhum `dangerouslySetInnerHTML`.
+  - Os textos dos feeds são gravados como texto puro e o React os escapa na renderização.
+  - Links e imagens passam por `safeHref`, que aceita só `http(s)`.
+- **CSP com nonce por requisição** (`src/proxy.ts`):
+  - `script-src 'self' 'nonce-…' 'strict-dynamic'` e `style-src 'self' 'nonce-…'`, sem `unsafe-inline`.
+  - `img-src 'self' https: data:` e `frame-ancestors 'none'`; em produção também `upgrade-insecure-requests`.
+  - O layout lê `headers()`, então todas as páginas são dinâmicas e recebem o nonce.
+- **Demais cabeçalhos** (`next.config.ts`):
+  - `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY` e `Permissions-Policy` restritiva.
+  - HSTS em produção.
+  - Na API, `Content-Security-Policy: default-src 'none'`.
+- **Rate limit** em memória por IP (`src/lib/rate-limit.ts`):
+  - Busca: 30 por minuto, valendo para a página e a API juntas.
+  - `/api/articles`: 120 por minuto.
+  - O IP vem de `X-Real-IP`, definido pelo Nginx Proxy Manager. O `X-Forwarded-For` não é usado porque o cliente pode forjá-lo.
+  - O estado vale para um único processo do Next.
+
 ## Status do projeto
 
 - [x] **Fase 1:** plano (estrutura e schema)
 - [x] **Fase 2:** scaffold, Prisma 7, migration com full-text, seed de categorias
 - [x] **Fase 3:** worker de coleta e seed de fontes validadas
-- [ ] **Fase 4:** interface (busca, filtros, paginação, `/fontes`)
+- [x] **Fase 4:** interface (busca, filtros, paginação, `/fontes`)
 - [ ] **Fase 5:** Docker Compose e `DEPLOY.md`
 - [ ] **Fase 6:** verificação ponta a ponta

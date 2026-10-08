@@ -1,5 +1,9 @@
 {
   "_comentario": "Regras de categoria por palavra-chave no TÍTULO. Usadas só quando a fonte não tem categoria padrão. A primeira regra que casar vence (ordem do arquivo). Comparação sem acento e sem diferenciar maiúsculas; palavra inteira; '*' no fim = prefixo (ex.: 'vacin*'). Edite e reinicie o worker.",
+  "_comentario_ignoreTitles": "Títulos descartados na coleta (não entram no banco). Regex aplicada ao título sem acento e em minúsculas. Ex.: matérias automáticas do g1 com resultado por seção eleitoral.",
+  "ignoreTitles": [
+    "^resultado das eleicoes \\d{4} em "
+  ],
   "rules": [
     {
       "category": "esportes",

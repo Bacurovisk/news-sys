@@ -5,7 +5,7 @@ import { writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { prisma } from "@/lib/db";
 import { collectSource, type CollectContext } from "./collect.ts";
-import { loadRules, RULES_PATH } from "./categorize.ts";
+import { loadIgnoredTitles, loadRules, RULES_PATH } from "./categorize.ts";
 import { config } from "./config.ts";
 import { makeHostAllowList } from "./domains.ts";
 import { errorMessage, log } from "./logger.ts";
@@ -49,6 +49,7 @@ async function runCycle(): Promise<void> {
     // Mesmo fontes inativas liberam o domínio: a lista só cresce por cadastro no seed.
     isAllowedHost: makeHostAllowList(allSources.flatMap((s) => [s.feedUrl, s.siteUrl])),
     rules,
+    ignoredTitles: loadIgnoredTitles(),
     categoryIdBySlug,
   };
 

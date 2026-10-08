@@ -1,7 +1,7 @@
 import { performance } from "node:perf_hooks";
 import Parser from "rss-parser";
 import type { PrismaClient, Source } from "@/generated/prisma/client.ts";
-import { categoryFromRules, type loadRules } from "./categorize.ts";
+import { categoryFromRules, isIgnoredTitle, type loadRules } from "./categorize.ts";
 import { config } from "./config.ts";
 import { imageFromFeed, imageFromPage, type FeedItemMedia } from "./image.ts";
 import { errorMessage, log } from "./logger.ts";
@@ -25,6 +25,8 @@ export type CollectContext = {
   prisma: PrismaClient;
   isAllowedHost: (hostname: string) => boolean;
   rules: ReturnType<typeof loadRules>;
+  /** títulos descartados (ignoreTitles de config/category-rules.json) */
+  ignoredTitles: RegExp[];
   categoryIdBySlug: Map<string, number>;
 };
 
@@ -63,6 +65,7 @@ function toCandidates(
   items: (Parser.Item & CustomItem)[],
   feedUrl: string,
   isAllowedHost: (hostname: string) => boolean,
+  ignoredTitles: RegExp[],
 ): Candidate[] {
   const now = new Date();
   const cutoff = new Date(now.getTime() - config.retentionDays * 86_400_000);
@@ -83,7 +86,7 @@ function toCandidates(
       description = "";
     }
     title = truncateWords(title, 300);
-    if (!title) continue;
+    if (!title || isIgnoredTitle(ignoredTitles, title)) continue;
     const hash = urlHash(url);
     if (seen.has(hash)) continue;
     seen.add(hash);
@@ -131,7 +134,7 @@ async function fetchAndInsert(source: Source, ctx: CollectContext): Promise<Coll
     throw new FetchError("parse_error", errorMessage(err));
   }
 
-  const candidates = toCandidates(feed.items, source.feedUrl, ctx.isAllowedHost);
+  const candidates = toCandidates(feed.items, source.feedUrl, ctx.isAllowedHost, ctx.ignoredTitles);
   const existing = new Set(
     (
       await ctx.prisma.article.findMany({

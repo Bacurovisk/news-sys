@@ -67,7 +67,7 @@ prisma/
     categories.ts
     sources/                 # um arquivo por UF; nova UF = novo arquivo + entrada no index.ts
 prisma.config.ts             # connection string (Prisma 7) e comando de seed
-config/category-rules.json   # regras de palavra-chave -> categoria (worker)
+config/category-rules.json   # regras de palavra-chave -> categoria e títulos ignorados (worker)
 scripts/dev-db.ts            # Postgres embutido para dev
 src/
   app/                       # páginas e rotas de API
@@ -100,7 +100,7 @@ Se alterar a expressão de `searchVector`, altere também `news_tsquery` na mesm
    - Título e resumo em texto puro; o resumo é cortado em até 280 caracteres, em limite de palavra.
    - Quando o título é só um "chapéu" e a manchete vem na description, a description vira o título. Há dois casos: chapéu em maiúsculas (ex.: `AO VIVO`) e nome do colunista ou do blog em links de `/colunas/` ou `/blogs/` (ex.: UOL com `Mariana Barbosa`).
    - **O `content:encoded` nunca é lido.**
-3. Descarta itens de domínios que não são de fontes cadastradas, como anúncios e links de terceiros.
+3. Descarta itens de domínios que não são de fontes cadastradas, como anúncios e links de terceiros, e itens cujo título casa com `ignoreTitles` em `config/category-rules.json` (regex no título sem acento e em minúsculas). Hoje a lista tem só as matérias automáticas do g1 com resultado por seção eleitoral (`^resultado das eleicoes \d{4} em `).
 4. Escolhe a imagem nesta ordem: `media:content`/`media:thumbnail` → `enclosure` de imagem → primeira `<img>` da description → `og:image` lido apenas do `<head>` da página, respeitando o `robots.txt`.
    - Busca no máximo 25 páginas por feed em cada ciclo; o excedente fica para o ciclo seguinte.
    - Descarta imagens genéricas (nome do arquivo com `logo`, `preview-share` etc.); nesse caso o card mostra o placeholder.

@@ -78,7 +78,6 @@ export function truncateWords(text: string, max: number): string {
   return base.replace(/[\s,;:.\-–—(]+$/u, "") + "…";
 }
 
-/** Aceita somente URLs http(s) absolutas (resolve relativas contra base). */
 // "Chapéu" no lugar do título: UOL manda <title>AO VIVO</title> ou, em colunas e blogs,
 // <title>Mariana Barbosa</title>, com a manchete na description.
 const KICKER = /^[\p{Lu}\p{N}\s!?:.\-–]{1,20}$/u;
@@ -91,6 +90,7 @@ export function isKickerTitle(title: string, url: string): boolean {
   return COLUMN_PATH.test(new URL(url).pathname) && NAME_LIKE.test(title);
 }
 
+/** Aceita somente URLs http(s) absolutas (resolve relativas contra base). */
 export function safeHttpUrl(raw: string | undefined | null, base?: string): string | null {
   if (!raw) return null;
   try {

@@ -5,7 +5,7 @@ import { categoryFromRules, type loadRules } from "./categorize.ts";
 import { config } from "./config.ts";
 import { imageFromFeed, imageFromPage, type FeedItemMedia } from "./image.ts";
 import { errorMessage, log } from "./logger.ts";
-import { canonicalUrl, cleanSummary, htmlToText, truncateWords, urlHash } from "./normalize.ts";
+import { canonicalUrl, cleanSummary, htmlToText, isKickerTitle, truncateWords, urlHash } from "./normalize.ts";
 import { decodeBody, FetchError, safeFetch } from "./safe-fetch.ts";
 
 type CustomItem = FeedItemMedia & { summary?: string };
@@ -59,9 +59,6 @@ function feedClockSkewMs(items: Parser.Item[], now: Date): number {
   return hours <= 14 ? hours * 3_600_000 : 0;
 }
 
-// "Chapéu" no lugar do título (ex.: UOL manda <title>AO VIVO</title> e a manchete na description).
-const KICKER = /^[\p{Lu}\p{N}\s!?:.\-–]{1,20}$/u;
-
 function toCandidates(
   items: (Parser.Item & CustomItem)[],
   feedUrl: string,
@@ -81,7 +78,7 @@ function toCandidates(
 
     let title = htmlToText(item.title);
     let description = cleanSummary(htmlToText(item.summary ?? item.content));
-    if ((!title || KICKER.test(title)) && description) {
+    if ((!title || isKickerTitle(title, url)) && description) {
       title = description;
       description = "";
     }

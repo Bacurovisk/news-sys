@@ -98,10 +98,12 @@ Se alterar a expressão de `searchVector`, altere também `news_tsquery` na mesm
    - URL canônica: sem `utm_*`, `fbclid`, `gclid` e fragmento, e com redirecionadores `…/*https://…` desembrulhados.
    - Deduplicação por SHA-256 da URL.
    - Título e resumo em texto puro; o resumo é cortado em até 280 caracteres, em limite de palavra.
+   - Quando o título é só um "chapéu" e a manchete vem na description, a description vira o título. Há dois casos: chapéu em maiúsculas (ex.: `AO VIVO`) e nome do colunista ou do blog em links de `/colunas/` ou `/blogs/` (ex.: UOL com `Mariana Barbosa`).
    - **O `content:encoded` nunca é lido.**
 3. Descarta itens de domínios que não são de fontes cadastradas, como anúncios e links de terceiros.
 4. Escolhe a imagem nesta ordem: `media:content`/`media:thumbnail` → `enclosure` de imagem → primeira `<img>` da description → `og:image` lido apenas do `<head>` da página, respeitando o `robots.txt`.
    - Busca no máximo 25 páginas por feed em cada ciclo; o excedente fica para o ciclo seguinte.
+   - Descarta imagens genéricas (nome do arquivo com `logo`, `preview-share` etc.); nesse caso o card mostra o placeholder.
 5. Define a categoria: categoria padrão da fonte → regras de `config/category-rules.json` (palavras do título) → `brasil` para fontes nacionais ou `regional` para estaduais e municipais.
 6. Herda a localização (`uf`/`city`) da fonte.
 7. Trata as datas:
@@ -147,7 +149,7 @@ Para adicionar uma UF:
 3. Rode `npm run feeds:validate`. Ele baixa cada feed, faz o parse, confere a data do item mais recente e o percentual de imagens, e abre o link do primeiro item.
 4. Rode `npm run db:seed`.
 
-Validadas em 08/10/2026 (44 feeds):
+Validadas em 08/10/2026 (57 feeds):
 
 | Fonte | Escopo | Feeds | Categoria |
 |---|---|---|---|
@@ -161,6 +163,11 @@ Validadas em 08/10/2026 (44 feeds):
 | Poder360 | Nacional | 1 | regras |
 | g1 Amazonas, D24AM, Em Tempo, Amazonas Atual, Amazônia Real, Amazonas Notícias, BNC Amazonas | AM | 1 cada | regras → Regional |
 | Prefeitura de Manaus | AM / Manaus | 1 | regras → Regional |
+| g1 Ceará, CN7, O Estado CE, Governo do Ceará | CE | 1 cada | regras → Regional |
+| Prefeitura de Fortaleza | CE / Fortaleza | 1 | regras → Regional |
+| g1 Santa Catarina, NSC Total, ND+, SCC10, Portal Making Of, OCP News | SC | 1 cada | regras → Regional |
+| O Município | SC / Brusque | 1 | regras → Regional |
+| Jornal de Pomerode | SC / Pomerode | 1 | regras → Regional |
 
 Não entraram:
 
@@ -174,6 +181,12 @@ Não entraram:
 | Revista Cenarium, Portal Marcos Santos | 403 para o nosso robô no feed |
 | Agência Amazonas | feed parado há cerca de 20 dias |
 | CM Manaus | XML inválido |
+| Diário do Nordeste | o único feed geral vem com a maioria dos itens sem data |
+| O Povo | descrição vazia, quase só matéria de agência e `og:image` com o logo |
+| Tribuna do Ceará | timeout |
+| Ceará Agora, O Município Blumenau | 403 para o nosso robô no feed |
+| Agência de Notícias SC | o servidor manda cabeçalho HTTP inválido (CSP em várias linhas), recusado pelo parser do Node |
+| Diarinho, Floripa News, prefeituras de Florianópolis e Joinville | sem feed ou XML inválido |
 | Feeds gerais de Agência Brasil, g1 e Folha | ok, mas ficaram de fora para não duplicar as editorias com categoria aleatória |
 
 ## Interface

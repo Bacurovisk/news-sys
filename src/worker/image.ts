@@ -19,6 +19,16 @@ export type FeedItemMedia = {
 
 const MIN_MEDIA_WIDTH = 150;
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif)(\?|$)/i;
+// Logo do veículo ou imagem padrão de compartilhamento: melhor mostrar o placeholder.
+const GENERIC_IMAGE = /logo|preview-share|default-share|share-default|og-default|placeholder/i;
+
+/** URL http(s) válida e que não seja imagem genérica do site. */
+export function usableImage(raw: string | undefined, base: string): string | null {
+  const url = safeHttpUrl(raw, base);
+  if (!url) return null;
+  const file = new URL(url).pathname.split("/").at(-1) ?? "";
+  return GENERIC_IMAGE.test(file) ? null : url;
+}
 
 function looksLikeImage(node: Record<string, string | undefined>): boolean {
   const medium = node.medium?.toLowerCase();
@@ -33,7 +43,7 @@ function bestMedia(nodes: MediaNode[] | undefined, base: string): string | null 
   for (const n of nodes ?? []) {
     const attrs = n?.$;
     if (!attrs?.url || !looksLikeImage(attrs)) continue;
-    const url = safeHttpUrl(attrs.url, base);
+    const url = usableImage(attrs.url, base);
     if (!url) continue;
     const width = Number(attrs.width) || 0;
     // Miniaturas declaradas pequenas costumam ser avatar do autor, não a foto da notícia.
@@ -54,7 +64,7 @@ export function imageFromFeed(item: FeedItemMedia, base: string): string | null 
 
   const enc = item.enclosure;
   if (enc?.url && (enc.type?.toLowerCase().startsWith("image/") || (!enc.type && IMAGE_EXT.test(enc.url)))) {
-    const url = safeHttpUrl(enc.url, base);
+    const url = usableImage(enc.url, base);
     if (url) return url;
   }
 
@@ -62,7 +72,7 @@ export function imageFromFeed(item: FeedItemMedia, base: string): string | null 
     const $ = cheerio.load(item.content, null, false);
     for (const el of $("img").toArray()) {
       const src = $(el).attr("src") ?? $(el).attr("data-src");
-      const url = safeHttpUrl(src, base);
+      const url = usableImage(src, base);
       // ignora pixels de rastreamento
       if (url && !/(pixel|tracker|feedburner|1x1)/i.test(url)) return url;
     }
@@ -97,7 +107,7 @@ export async function imageFromPage(
     $('meta[property="twitter:image"]').attr("content"),
   ];
   for (const c of candidates) {
-    const url = safeHttpUrl(c, res.url);
+    const url = usableImage(c, res.url);
     if (url) return url;
   }
   return null;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canonicalUrl, cleanSummary, htmlToText, safeHttpUrl, truncateWords, urlHash } from "../normalize.ts";
+import { canonicalUrl, cleanSummary, htmlToText, isKickerTitle, safeHttpUrl, truncateWords, urlHash } from "../normalize.ts";
 
 test("canonicalUrl remove rastreamento, fragmento e ordena parâmetros", () => {
   assert.equal(
@@ -43,4 +43,19 @@ test("truncateWords corta em limite de palavra com reticências", () => {
 test("cleanSummary remove rodapé de WordPress", () => {
   assert.equal(cleanSummary("Resumo. The post Título appeared first on Site."), "Resumo.");
   assert.equal(cleanSummary("Resumo. O post Título apareceu primeiro em Site."), "Resumo.");
+});
+
+test("isKickerTitle: chapéu em maiúsculas e nome de colunista/blog", () => {
+  const col = "https://economia.uol.com.br/colunas/mariana-barbosa/2026/10/08/eventual-governo.htm";
+  const blog = "https://www1.folha.uol.com.br/blogs/musica-em-letras/2026/10/pequeno-cidadao.shtml";
+  assert.equal(isKickerTitle("AO VIVO", "https://www.uol.com.br/x.htm"), true);
+  assert.equal(isKickerTitle("Mariana Barbosa", col), true);
+  assert.equal(isKickerTitle("Conrado Hübner", col), true);
+  assert.equal(isKickerTitle("Caçador de Carros", col), true);
+  assert.equal(isKickerTitle("Música em Letras", blog), true);
+  // manchete de verdade em coluna: fica
+  assert.equal(isKickerTitle("Proibir não é proteger?", col), false);
+  assert.equal(isKickerTitle("O mundo sobreviveu ao auge de Donald Trump", col), false);
+  // nome fora de coluna/blog: fica (ex.: matéria sobre uma pessoa)
+  assert.equal(isKickerTitle("Mariana Barbosa", "https://g1.globo.com/noticia/x.ghtml"), false);
 });

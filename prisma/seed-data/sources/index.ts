@@ -1,6 +1,8 @@
 import type { Scope } from "../../../src/generated/prisma/enums.ts";
 import { am } from "./am.ts";
+import { ce } from "./ce.ts";
 import { nacional } from "./nacional.ts";
+import { sc } from "./sc.ts";
 
 export type SourceSeed = {
   name: string;
@@ -15,4 +17,4 @@ export type SourceSeed = {
 
 // Adicionar uma UF = criar seed-data/sources/<uf>.ts, validar com
 // `npx tsx scripts/validate-feeds.ts` e incluir a lista aqui.
-export const sources: SourceSeed[] = [...nacional, ...am];
+export const sources: SourceSeed[] = [...nacional, ...am, ...ce, ...sc];

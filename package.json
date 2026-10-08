@@ -16,7 +16,11 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "worker": "tsx --env-file-if-exists=.env src/worker/index.ts",
+    "worker:once": "tsx --env-file-if-exists=.env src/worker/index.ts --once",
+    "feeds:validate": "tsx scripts/validate-feeds.ts",
+    "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",

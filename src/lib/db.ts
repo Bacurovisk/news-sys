@@ -4,7 +4,9 @@ import { PrismaClient } from "@/generated/prisma/client.ts";
 function createClient() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL não definida");
-  const adapter = new PrismaPg({ connectionString, max: 5 });
+  // Sessão sempre em UTC: o adapter pg envia DateTime sem offset, e com outro TimeZone
+  // o Postgres gravaria timestamptz deslocado (ex.: +3 h com America/Sao_Paulo).
+  const adapter = new PrismaPg({ connectionString, max: 5, options: "-c TimeZone=UTC" });
   return new PrismaClient({ adapter });
 }
 

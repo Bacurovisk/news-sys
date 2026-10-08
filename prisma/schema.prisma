@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Scope {
+  NACIONAL
+  ESTADUAL
+  MUNICIPAL
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  slug      String    @unique
+  name      String
+  sortOrder Int       @default(0)
+  articles  Article[]
+  sources   Source[]
+}
+
+model Source {
+  id                  Int       @id @default(autoincrement())
+  name                String
+  siteUrl             String
+  feedUrl             String    @unique
+  scope               Scope
+  uf                  String?   @db.Char(2)
+  city                String?
+  defaultCategoryId   Int?
+  defaultCategory     Category? @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  active              Boolean   @default(true)
+  etag                String?
+  lastModified        String?
+  lastFetchedAt       DateTime? @db.Timestamptz(3)
+  lastStatus          String?
+  consecutiveFailures Int       @default(0)
+  articles            Article[]
+
+  @@index([active])
+}
+
+model Article {
+  id           Int                      @id @default(autoincrement())
+  sourceId     Int
+  source       Source                   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  url          String
+  urlHash      String                   @unique @db.Char(64)
+  title        String
+  summary      String                   @db.VarChar(300)
+  imageUrl     String?
+  publishedAt  DateTime                 @db.Timestamptz(3)
+  fetchedAt    DateTime                 @default(now()) @db.Timestamptz(3)
+  categoryId   Int
+  category     Category                 @relation(fields: [categoryId], references: [id])
+  uf           String?                  @db.Char(2)
+  city         String?
+  // Coluna gerada (ver migration init): título peso A + resumo peso B, config portuguese,
+  // indexado com e sem acento. Consultar com news_tsquery($1).
+  searchVector Unsupported("tsvector")? @default(dbgenerated())
+
+  @@index([publishedAt(sort: Desc), id(sort: Desc)])
+  @@index([categoryId, publishedAt(sort: Desc)])
+  @@index([uf, publishedAt(sort: Desc)])
+  @@index([uf, city, publishedAt(sort: Desc)])
+  @@index([sourceId])
+  @@index([searchVector], type: Gin)
+}
+
+// Controle de tarefas periódicas do worker (ex.: retenção diária).
+model JobRun {
+  name      String   @id
+  lastRunAt DateTime @db.Timestamptz(3)
+}

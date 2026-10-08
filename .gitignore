@@ -1,0 +1,23 @@
+# deps
+node_modules/
+
+# next
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# prisma client gerado
+src/generated/
+
+# segredos: nenhum .env real entra no git
+.env*
+!.env.example
+
+# postgres embutido de desenvolvimento
+.devdb/
+
+# misc
+.DS_Store
+*.log
+coverage/
